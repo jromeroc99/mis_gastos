@@ -38,17 +38,8 @@ httpx==0.25.2
 
 **Contenido de `.env.example`**:
 ```bash
-# Environment
-ENV=development  # development | production
-
-# Database - Development
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mis_gastos_dev
-
-# Database - Production (descomentar para producción)
-# DATABASE_URL=postgresql://postgres:secure_password@localhost:5433/mis_gastos
-# POSTGRES_USER=postgres
-# POSTGRES_PASSWORD=secure_password
-# POSTGRES_DB=mis_gastos
+# Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mis_gastos
 
 # Security
 SECRET_KEY=your-secret-key-change-this-in-production
@@ -127,96 +118,98 @@ uvicorn app.main:app --reload
 
 ## Task 1.2: Configuración de PostgreSQL con Docker
 
-**Objetivo**: Configurar base de datos PostgreSQL usando Docker Compose para desarrollo y producción
+**Objetivo**: Configurar PostgreSQL con Docker (solo DB al principio) y preparar dockerización completa para el futuro
+
+**Estrategia**: Crear toda la configuración Docker desde el inicio, pero inicialmente solo levantar PostgreSQL. El backend se ejecuta localmente. Cuando todo esté funcional, ya tendremos todo listo para hacer `docker-compose up` completo.
 
 **Archivos a crear**:
 ```
 backend/
-├── docker-compose.dev.yml
-├── docker-compose.prod.yml
+├── Dockerfile
+├── docker-compose.yml
 └── .dockerignore
 ```
 
-**Contenido de `docker-compose.dev.yml`** (Desarrollo):
+**Contenido de `Dockerfile`**:
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar código
+COPY . .
+
+# Exponer puerto
+EXPOSE 8000
+
+# Comando de inicio
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+**Contenido de `docker-compose.yml`**:
 ```yaml
 version: '3.8'
 
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: mis_gastos_db_dev
+    container_name: mis_gastos_db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mis_gastos_dev
+      POSTGRES_DB: mis_gastos
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data_dev:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  backend:
+    build: .
+    container_name: mis_gastos_api
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mis_gastos
+      SECRET_KEY: ${SECRET_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app  # Hot reload en desarrollo
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
 volumes:
-  postgres_data_dev:
+  postgres_data:
 ```
 
-**Contenido de `docker-compose.prod.yml`** (Producción):
-```yaml
-version: '3.8'
-
-services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: mis_gastos_db_prod
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-mis_gastos}
-    ports:
-      - "5433:5432"  # Puerto diferente para no conflictuar con dev
-    volumes:
-      - postgres_data_prod:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - mis_gastos_network
-
-volumes:
-  postgres_data_prod:
-
-networks:
-  mis_gastos_network:
-**Comandos de verificación**:
-```bash
-# DESARROLLO: Iniciar PostgreSQL
-docker-compose -f docker-compose.dev.yml up -d
-
-# Verificar que está corriendo
-docker ps
-
-# Verificar conexión
-pytest tests/test_database_connection.py
-
-# Detener desarrollo
-docker-compose -f docker-compose.dev.yml down
-
-# PRODUCCIÓN: Iniciar PostgreSQL (requiere .env con POSTGRES_PASSWORD)
-docker-compose -f docker-compose.prod.yml up -d
-
-# Verificar producción
-docker ps | grep mis_gastos_db_prod
-
-# Detener producción
-docker-compose -f docker-compose.prod.yml down
-```verage
+**Contenido de `.dockerignore`**:
+```
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.pytest_cache/
+.coverage
 htmlcov/
+.env
+.git
 ```
 
 **Testing**:
@@ -224,7 +217,7 @@ htmlcov/
 # tests/test_database_connection.py
 import pytest
 import os
-from sqlmodel import create_engine, Session, select, text
+from sqlmodel import create_engine, Session, text
 
 def test_database_connection():
     """Test que la conexión a PostgreSQL funciona"""
@@ -236,27 +229,49 @@ def test_database_connection():
         assert result[0] == 1
 ```
 
-**Comandos de verificación**:
+**Comandos de verificación (Fase inicial - Solo PostgreSQL)**:
 ```bash
-# Iniciar PostgreSQL
-docker-compose up -d
+# Levantar SOLO PostgreSQL
+docker-compose up postgres -d
 
 # Verificar que está corriendo
-**Criterio de aceptación**:
-- ✅ PostgreSQL desarrollo se inicia correctamente (puerto 5432)
-- ✅ PostgreSQL producción se inicia correctamente (puerto 5433)
-- ✅ Bases de datos separadas: `mis_gastos_dev` y `mis_gastos`
-- ✅ Test de conexión pasa correctamente
-- ✅ Entornos independientes y no conflictivos
-# Detener
+docker ps
+
+# Ejecutar test de conexión (backend local)
+pytest tests/test_database_connection.py
+
+# Ver logs de PostgreSQL
+docker-compose logs -f postgres
+
+# Detener PostgreSQL
 docker-compose down
 ```
 
+**Comandos para dockerización completa (Fase final - después de Task 7.5)**:
+```bash
+# Construir y levantar TODO (PostgreSQL + Backend)
+docker-compose up --build
+
+# En otra terminal, ejecutar tests
+docker-compose exec backend pytest
+
+# Ver logs
+docker-compose logs -f
+
+# Detener todo
+docker-compose down
+
+# Detener y eliminar volúmenes
+docker-compose down -v
+```
+
 **Criterio de aceptación**:
-- ✅ PostgreSQL se inicia correctamente con Docker
-- ✅ Base de datos `mis_gastos` creada
+- ✅ Archivos Docker creados (Dockerfile, docker-compose.yml, .dockerignore)
+- ✅ PostgreSQL se levanta correctamente con Docker
+- ✅ Base de datos `mis_gastos` creada automáticamente
+- ✅ Backend local se conecta a PostgreSQL en Docker (localhost:5432)
 - ✅ Test de conexión pasa correctamente
-- ✅ Puerto 5432 accesible
+- ✅ Todo preparado para dockerización completa en el futuro
 
 ---
 

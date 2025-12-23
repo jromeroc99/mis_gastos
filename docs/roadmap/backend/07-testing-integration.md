@@ -134,16 +134,17 @@ async def value_error_handler(request, exc):
 
 ---
 
-## Task 7.5: Docker Compose Completo (Desarrollo y Producción)
+## Task 7.5: Dockerización Completa del Backend
 
-**Objetivo**: Configurar Docker Compose para desarrollo y producción con backend + PostgreSQL
+**Objetivo**: Dockerizar la aplicación completa (backend + PostgreSQL) para facilitar deployment
 
-**Archivos a crear/actualizar**:
+**Nota**: Esta tarea se realiza AL FINAL, después de tener el backend 100% funcional en desarrollo local.
+
+**Archivos a crear**:
 ```
 backend/
 ├── Dockerfile
-├── docker-compose.dev.yml (actualizar - ya existe solo con postgres)
-├── docker-compose.prod.yml (actualizar - ya existe solo con postgres)
+├── docker-compose.yml (actualizar - añadir servicio backend)
 └── .dockerignore
 ```
 
@@ -153,9 +154,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instalar dependencias del sistema si son necesarias
+# Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar requirements e instalar
@@ -164,6 +166,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar código de la aplicación
 COPY ./app ./app
+COPY ./tests ./tests
 
 # Exponer puerto
 EXPOSE 8000
@@ -172,187 +175,45 @@ EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-**Actualizar `docker-compose.dev.yml`** (Desarrollo completo):
+**Actualizar `docker-compose.yml`** (añadir servicio backend):
 ```yaml
 version: '3.8'
 
 services:
-  # Backend API en desarrollo
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: mis_gastos_api_dev
-    ports:
-      - "8000:8000"
-    environment:
-      - ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/mis_gastos_dev
-**Contenido de `.env.prod.example`** (crear para producción):
-```bash
-# Environment
-ENV=production
-
-# Database
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=CHANGE_THIS_SECURE_PASSWORD
-POSTGRES_DB=mis_gastos
-
-# Security - CAMBIAR EN PRODUCCIÓN
-SECRET_KEY=CHANGE_THIS_TO_RANDOM_SECRET_KEY
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-REFRESH_TOKEN_EXPIRE_DAYS=7
-
-# CORS - Ajustar según dominio
-**Actualizar `backend/README.md`**:
-```markdown
-# Mis Gastos - Backend API
-
-## Requisitos
-- Python 3.11+
-- PostgreSQL 15+
-- Docker y Docker Compose
-
-## Instalación Local (sin Docker)
-
-1. Clonar repositorio
-2. Crear .env desde .env.example
-3. Instalar dependencias: `pip install -r requirements.txt`
-4. Iniciar PostgreSQL: `docker-compose -f docker-compose.dev.yml up -d postgres`
-5. Ejecutar aplicación: `uvicorn app.main:app --reload`
-
-## Desarrollo con Docker (Recomendado)
-
-```bash
-# Levantar todo el stack de desarrollo (API + PostgreSQL)
-docker-compose -f docker-compose.dev.yml up --build
-
-# Acceder a la API
-http://localhost:8000/docs
-
-# Ver logs
-docker-compose -f docker-compose.dev.yml logs -f
-
-# Detener
-docker-compose -f docker-compose.dev.yml down
-```
-
-## Testing
-
-```bash
-# Tests locales
-pytest tests/ -v --cov=app
-
-# Tests en contenedor
-docker-compose -f docker-compose.dev.yml exec api pytest tests/ -v
-```
-
-## Producción con Docker
-
-```bash
-# 1. Crear archivo .env.prod con variables seguras
-cp .env.prod.example .env.prod
-# Editar .env.prod con valores de producción
-
-# 2. Levantar en modo producción
-docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d
-
-# 3. Verificar estado
-docker-compose -f docker-compose.prod.yml ps
-
-# 4. Ver logs
-docker-compose -f docker-compose.prod.yml logs -f
-
-# 5. Detener
-docker-compose -f docker-compose.prod.yml down
-```
-
-## Diferencias entre Entornos
-
-| Característica | Desarrollo | Producción |
-|---------------|------------|------------|
-| Puerto PostgreSQL | 5432 | 5433 |
-| Base de datos | mis_gastos_dev | mis_gastos |
-| Hot reload | ✅ Sí | ❌ No |
-| Variables .env | Hardcoded en compose | Desde .env.prod |
-| Logs SQL | ✅ Verbose | ❌ Minimal |
-| Health checks | Básicos | Completos |
-
-## API Documentation
-
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-- OpenAPI JSON: http://localhost:8000/openapi.json
-```ker-compose -f docker-compose.prod.yml down
-```
-
-**Criterio de aceptación**:
-- ✅ Desarrollo y producción con configuraciones separadas
-- ✅ Hot reload funciona en desarrollo (volumen montado)
-- ✅ Producción usa variables de entorno seguras
-- ✅ PostgreSQL en diferentes puertos (5432 dev, 5433 prod)
-- ✅ Redes aisladas para cada entorno
-- ✅ Health checks implementados
-- ✅ Restart policies configuradas
-      - mis_gastos_network_dev
-    restart: unless-stopped
-
-  # PostgreSQL para desarrollo
   postgres:
     image: postgres:15-alpine
-    container_name: mis_gastos_db_dev
+    container_name: mis_gastos_db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mis_gastos_dev
+      POSTGRES_DB: mis_gastos
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data_dev:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - mis_gastos_network_dev
 
-volumes:
-  postgres_data_dev:
-
-networks:
-  mis_gastos_network_dev:
-    driver: bridge
-```
-
-**Actualizar `docker-compose.prod.yml`** (Producción completa):
-```yaml
-version: '3.8'
-
-services:
-  # Backend API en producción
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: mis_gastos_api_prod
+  backend:
+    build: .
+    container_name: mis_gastos_api
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mis_gastos
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
     ports:
       - "8000:8000"
-    environment:
-      - ENV=production
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - SECRET_KEY=${SECRET_KEY}
-      - ALGORITHM=HS256
-      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
-      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS:-7}
-      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:5173"]}
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - mis_gastos_network_prod
-    restart: unless-stopped
+    volumes:
+      - ./app:/app/app  # Hot reload en desarrollo
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -360,44 +221,146 @@ services:
       retries: 3
       start_period: 40s
 
-  # PostgreSQL para producción
-  postgres:
-    image: postgres:15-alpine
-    container_name: mis_gastos_db_prod
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5433:5432"  # Puerto diferente para no conflictuar con dev
-    volumes:
-      - postgres_data_prod:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    networks:
-      - mis_gastos_network_prod
-
 volumes:
-  postgres_data_prod:
-
-networks:
-  mis_gastos_network_prod:
-    driver: bridge
+  postgres_data:
 ```
 
-**Testing**:
+**Contenido de `.dockerignore`**:
+```
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.env
+.git
+*.md
+```
+**Actualizar `backend/README.md`**:
+```markdown
+# Mis Gastos - Backend API
+
+## Requisitos
+- Python 3.11+
+- PostgreSQL 15+
+- Docker y Docker Compose (opcional, para deployment)
+
+## Instalación y Desarrollo Local (Recomendado)
+
+### 1. Configurar PostgreSQL en WSL2
 ```bash
-docker-compose -f docker-compose.prod.yml up --build
+# Instalar PostgreSQL
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+
+# Iniciar servicio
+sudo service postgresql start
+
+# Crear base de datos
+sudo -u postgres psql -c "CREATE DATABASE mis_gastos;"
+```
+
+### 2. Configurar Backend
+```bash
+# Clonar repositorio y entrar a backend
+cd backend
+
+# Crear entorno virtual
+python -m venv venv
+source venv/bin/activate
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Crear .env desde .env.example
+cp .env.example .env
+
+# Ejecutar aplicación
+uvicorn app.main:app --reload
+```
+
+### 3. Acceder a la API
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+## Testing
+
+```bash
+# Tests locales
+pytest tests/ -v --cov=app
+
+# Solo tests unitarios
+pytest tests/unit/ -v
+
+# Solo tests de integración
+pytest tests/integration/ -v
+```
+
+## Deployment con Docker (Fase Final)
+
+**Nota**: Usar Docker solo cuando el backend esté 100% funcional y testeado.
+
+```bash
+# Construir y levantar todo el stack (PostgreSQL + Backend)
+docker-compose up --build
+
+# En otra terminal, ejecutar tests
+docker-compose exec backend pytest
+
+# Ver logs
+docker-compose logs -f
+
+# Detener
+docker-compose down
+
+# Detener y eliminar volúmenes
+docker-compose down -v
+```
+
+## API Documentation
+
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+- OpenAPI JSON: http://localhost:8000/openapi.json
+**Comandos de verificación (Docker)**:
+```bash
+# Construir y levantar todos los servicios
+docker-compose up --build
+
+# Verificar que está corriendo
+docker ps
+
+# Ejecutar tests dentro del contenedor
+docker-compose exec backend pytest
+
+# Ver logs
+docker-compose logs -f
+
+# Acceder a la API
 curl http://localhost:8000/health
+
+# Detener
+docker-compose down
+
+# Detener y eliminar volúmenes
+docker-compose down -v
 ```
 
 **Criterio de aceptación**:
-- ✅ Aplicación se ejecuta en contenedor
-- ✅ Variables de entorno configurables
+- ✅ Dockerfile construye correctamente
+- ✅ docker-compose levanta PostgreSQL y backend
+- ✅ Backend se conecta a PostgreSQL en Docker
+- ✅ Tests pasan dentro del contenedor
+- ✅ API accesible en http://localhost:8000
+- ✅ Hot reload funciona con volumen montado
+- ✅ Health checks implementados
+
+---
 - ✅ PostgreSQL conectado correctamente
 
 ---
