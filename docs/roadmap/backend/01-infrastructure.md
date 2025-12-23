@@ -116,100 +116,50 @@ uvicorn app.main:app --reload
 
 ---
 
-## Task 1.2: Configuración de PostgreSQL con Docker
+## Task 1.2: Configuración de PostgreSQL Local
 
-**Objetivo**: Configurar PostgreSQL con Docker (solo DB al principio) y preparar dockerización completa para el futuro
+**Objetivo**: Configurar PostgreSQL localmente en WSL2 para desarrollo
 
-**Estrategia**: Crear toda la configuración Docker desde el inicio, pero inicialmente solo levantar PostgreSQL. El backend se ejecuta localmente. Cuando todo esté funcional, ya tendremos todo listo para hacer `docker-compose up` completo.
+**Estrategia**: Usar PostgreSQL nativo instalado en WSL2. Docker se implementará al final cuando todo funcione.
 
-**Archivos a crear**:
-```
-backend/
-├── Dockerfile
-├── docker-compose.yml
-└── .dockerignore
-```
+**Instalación de PostgreSQL en WSL2**:
+```bash
+# Actualizar sistema
+sudo apt update && sudo apt upgrade -y
 
-**Contenido de `Dockerfile`**:
-```dockerfile
-FROM python:3.11-slim
+# Instalar PostgreSQL
+sudo apt install postgresql postgresql-contrib -y
 
-WORKDIR /app
+# Iniciar servicio
+sudo service postgresql start
 
-# Instalar dependencias del sistema
-RUN apt-get update && apt-get install -y \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copiar requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copiar código
-COPY . .
-
-# Exponer puerto
-EXPOSE 8000
-
-# Comando de inicio
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Verificar status
+sudo service postgresql status
 ```
 
-**Contenido de `docker-compose.yml`**:
-```yaml
-version: '3.8'
+**Configuración inicial de la base de datos**:
+```bash
+# Conectar como usuario postgres
+sudo -u postgres psql
 
-services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: mis_gastos_db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mis_gastos
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+# Crear base de datos y usuario (ejecutar en psql)
+CREATE DATABASE mis_gastos;
+CREATE USER mis_gastos_user WITH PASSWORD 'your_secure_password';
+GRANT ALL PRIVILEGES ON DATABASE mis_gastos TO mis_gastos_user;
 
-  backend:
-    build: .
-    container_name: mis_gastos_api
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mis_gastos
-      SECRET_KEY: ${SECRET_KEY}
-    ports:
-      - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./app:/app/app  # Hot reload en desarrollo
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-volumes:
-  postgres_data:
+# Salir de psql
+\q
 ```
 
-**Contenido de `.dockerignore`**:
-```
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.pytest_cache/
-.coverage
-htmlcov/
-.env
-.git
+**Archivo `.env` en `backend/`**:
+```env
+# Database
+DATABASE_URL=postgresql://mis_gastos_user:your_secure_password@localhost:5432/mis_gastos
+
+# Security
+SECRET_KEY=your-secret-key-here-change-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
 ```
 
 **Testing**:
@@ -221,7 +171,7 @@ from sqlmodel import create_engine, Session, text
 
 def test_database_connection():
     """Test que la conexión a PostgreSQL funciona"""
-    database_url = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/mis_gastos")
+    database_url = os.getenv("DATABASE_URL", "postgresql://mis_gastos_user:your_secure_password@localhost:5432/mis_gastos")
     engine = create_engine(database_url)
     
     with Session(engine) as session:
@@ -229,49 +179,41 @@ def test_database_connection():
         assert result[0] == 1
 ```
 
-**Comandos de verificación (Fase inicial - Solo PostgreSQL)**:
+**Comandos de verificación**:
 ```bash
-# Levantar SOLO PostgreSQL
-docker-compose up postgres -d
+# Verificar que PostgreSQL está corriendo
+sudo service postgresql status
 
-# Verificar que está corriendo
-docker ps
+# Conectar a la base de datos
+psql -U mis_gastos_user -d mis_gastos -h localhost
 
-# Ejecutar test de conexión (backend local)
+# Ejecutar test de conexión
+cd backend
 pytest tests/test_database_connection.py
 
-# Ver logs de PostgreSQL
-docker-compose logs -f postgres
-
-# Detener PostgreSQL
-docker-compose down
+# Ver bases de datos existentes
+psql -U postgres -c "\l"
 ```
 
-**Comandos para dockerización completa (Fase final - después de Task 7.5)**:
+**Comandos útiles de PostgreSQL**:
 ```bash
-# Construir y levantar TODO (PostgreSQL + Backend)
-docker-compose up --build
+# Iniciar servicio
+sudo service postgresql start
 
-# En otra terminal, ejecutar tests
-docker-compose exec backend pytest
+# Detener servicio
+sudo service postgresql stop
+
+# Reiniciar servicio
+sudo service postgresql restart
 
 # Ver logs
-docker-compose logs -f
-
-# Detener todo
-docker-compose down
-
-# Detener y eliminar volúmenes
-docker-compose down -v
-```
-
 **Criterio de aceptación**:
-- ✅ Archivos Docker creados (Dockerfile, docker-compose.yml, .dockerignore)
-- ✅ PostgreSQL se levanta correctamente con Docker
-- ✅ Base de datos `mis_gastos` creada automáticamente
-- ✅ Backend local se conecta a PostgreSQL en Docker (localhost:5432)
+- ✅ PostgreSQL instalado en WSL2
+- ✅ Base de datos `mis_gastos` creada correctamente
+- ✅ Usuario y permisos configurados
+- ✅ Backend local se conecta a PostgreSQL (localhost:5432)
 - ✅ Test de conexión pasa correctamente
-- ✅ Todo preparado para dockerización completa en el futuro
+- ✅ Archivo `.env` configurado
 
 ---
 

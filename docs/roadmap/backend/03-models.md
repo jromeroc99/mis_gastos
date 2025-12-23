@@ -169,8 +169,11 @@ def test_account_default_balance(test_user):
 
 **Comandos de verificación**:
 ```bash
-docker-compose down -v && docker-compose up -d
+# Ejecutar tests
 pytest tests/test_category_account_models.py -v
+
+# Verificar tablas en PostgreSQL
+psql -U mis_gastos_user -d mis_gastos -h localhost -c "\dt"
 ```
 
 **Criterio de aceptación**:
@@ -321,8 +324,11 @@ def test_transaction_negative_amount(test_data):
 
 **Comandos de verificación**:
 ```bash
-docker-compose down -v && docker-compose up -d
+# Ejecutar tests
 pytest tests/test_transaction_model.py -v
+
+# Verificar tabla transactions
+psql -U mis_gastos_user -d mis_gastos -h localhost -c "\d transactions"
 ```
 
 **Criterio de aceptación**:
@@ -464,8 +470,11 @@ def test_create_asset_transaction(test_user):
 
 **Comandos de verificación**:
 ```bash
-docker-compose down -v && docker-compose up -d
-pytest tests/test_asset_models.py -v
+# Ejecutar tests
+pytest tests/test_budget_model.py -v
+
+# Verificar tabla budgets
+psql -U mis_gastos_user -d mis_gastos -h localhost -c "\d budgets"
 ```
 
 **Criterio de aceptación**:

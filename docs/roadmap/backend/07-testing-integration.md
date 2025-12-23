@@ -134,233 +134,51 @@ async def value_error_handler(request, exc):
 
 ---
 
-## Task 7.5: Dockerización Completa del Backend
+## Task 7.5: Dockerización del Backend (POSPUESTA)
 
-**Objetivo**: Dockerizar la aplicación completa (backend + PostgreSQL) para facilitar deployment
+**Objetivo**: Dockerizar la aplicación completa cuando todo funcione en local
 
-**Nota**: Esta tarea se realiza AL FINAL, después de tener el backend 100% funcional en desarrollo local.
+**IMPORTANTE**: Esta tarea se realizará AL FINAL del proyecto, cuando:
+- ✅ Backend 100% funcional en local
+- ✅ Todos los tests pasando
+- ✅ Frontend integrado y funcionando
+- ✅ Todo verificado sin contenedores
 
-**Archivos a crear**:
-```
-backend/
-├── Dockerfile
-├── docker-compose.yml (actualizar - añadir servicio backend)
-└── .dockerignore
-```
+**Por ahora**: Trabajar con PostgreSQL local en WSL2 (sin Docker)
 
-**Contenido de `Dockerfile`**:
-```dockerfile
-FROM python:3.11-slim
+**Referencia futura**: Ver documentación en Phase 8 cuando se implemente.
 
-WORKDIR /app
+---
 
-# Instalar dependencias del sistema
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+## Resumen de Task 7 - Testing e Integración
 
-# Copiar requirements e instalar
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copiar código de la aplicación
-COPY ./app ./app
-COPY ./tests ./tests
-
-# Exponer puerto
-EXPOSE 8000
-
-# Comando para ejecutar
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-**Actualizar `docker-compose.yml`** (añadir servicio backend):
-```yaml
-version: '3.8'
-
-services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: mis_gastos_db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mis_gastos
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  backend:
-    build: .
-    container_name: mis_gastos_api
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mis_gastos
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
-      ALGORITHM: HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: 30
-      REFRESH_TOKEN_EXPIRE_DAYS: 7
-    ports:
-      - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./app:/app/app  # Hot reload en desarrollo
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-volumes:
-  postgres_data:
-```
-
-**Contenido de `.dockerignore`**:
-```
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.pytest_cache/
-.coverage
-htmlcov/
-.env
-.git
-*.md
-```
-**Actualizar `backend/README.md`**:
-```markdown
-# Mis Gastos - Backend API
-
-## Requisitos
+### Requisitos previos
 - Python 3.11+
-- PostgreSQL 15+
-- Docker y Docker Compose (opcional, para deployment)
+- PostgreSQL 15+ (local en WSL2)
+- pytest instalado
 
-## Instalación y Desarrollo Local (Recomendado)
-
-### 1. Configurar PostgreSQL en WSL2
-```bash
-# Instalar PostgreSQL
-sudo apt update
-sudo apt install postgresql postgresql-contrib
-
-# Iniciar servicio
-sudo service postgresql start
-
-# Crear base de datos
-sudo -u postgres psql -c "CREATE DATABASE mis_gastos;"
-```
-
-### 2. Configurar Backend
-```bash
-# Clonar repositorio y entrar a backend
-cd backend
-
-# Crear entorno virtual
-python -m venv venv
-source venv/bin/activate
-
-# Instalar dependencias
-pip install -r requirements.txt
-
-# Crear .env desde .env.example
-cp .env.example .env
-
-# Ejecutar aplicación
-uvicorn app.main:app --reload
-```
-
-### 3. Acceder a la API
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## Testing
+### Comandos de verificación (PostgreSQL local)
 
 ```bash
-# Tests locales
-pytest tests/ -v --cov=app
-
-# Solo tests unitarios
-pytest tests/unit/ -v
-
-# Solo tests de integración
-pytest tests/integration/ -v
-```
-
-## Deployment con Docker (Fase Final)
-
-**Nota**: Usar Docker solo cuando el backend esté 100% funcional y testeado.
-
-```bash
-# Construir y levantar todo el stack (PostgreSQL + Backend)
-docker-compose up --build
-
-# En otra terminal, ejecutar tests
-docker-compose exec backend pytest
-
-# Ver logs
-docker-compose logs -f
-
-# Detener
-docker-compose down
-
-# Detener y eliminar volúmenes
-docker-compose down -v
-```
-
-## API Documentation
-
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-- OpenAPI JSON: http://localhost:8000/openapi.json
-**Comandos de verificación (Docker)**:
-```bash
-# Construir y levantar todos los servicios
-docker-compose up --build
-
-# Verificar que está corriendo
-docker ps
-
-# Ejecutar tests dentro del contenedor
-docker-compose exec backend pytest
-
-# Ver logs
-docker-compose logs -f
+# Verificar PostgreSQL
+sudo service postgresql status
 
 # Acceder a la API
 curl http://localhost:8000/health
 
-# Detener
-docker-compose down
+# Ejecutar tests
+pytest tests/ -v --cov=app
 
-# Detener y eliminar volúmenes
-docker-compose down -v
+# Ver logs de PostgreSQL
+sudo tail -f /var/log/postgresql/postgresql-*-main.log
 ```
 
 **Criterio de aceptación**:
-- ✅ Dockerfile construye correctamente
-- ✅ docker-compose levanta PostgreSQL y backend
-- ✅ Backend se conecta a PostgreSQL en Docker
-- ✅ Tests pasan dentro del contenedor
+- ✅ Tests unitarios e integración pasan
+- ✅ Backend se conecta a PostgreSQL local
 - ✅ API accesible en http://localhost:8000
-- ✅ Hot reload funciona con volumen montado
+- ✅ Hot reload funciona con uvicorn
 - ✅ Health checks implementados
-
----
 - ✅ PostgreSQL conectado correctamente
 
 ---
@@ -383,7 +201,7 @@ docker-compose down -v
 1. Clonar repositorio
 2. Crear .env desde .env.example
 3. Instalar dependencias: `pip install -r requirements.txt`
-4. Iniciar PostgreSQL: `docker-compose up -d`
+4. Iniciar PostgreSQL: `sudo service postgresql start`
 5. Ejecutar aplicación: `uvicorn app.main:app --reload`
 
 ## Testing

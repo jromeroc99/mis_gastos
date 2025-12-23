@@ -35,9 +35,10 @@ No avanzar a la siguiente fase hasta que la anterior esté completamente funcion
 - **Lenguaje**: Kotlin
 - **Storage**: EncryptedSharedPreferences / Keystore
 
-### Orquestación
-- **Docker**: Docker Compose
+### Entorno de Desarrollo
 - **Entorno**: WSL2
+- **Base de Datos**: PostgreSQL local (sin Docker por ahora)
+- **Docker**: Se implementará al final, cuando todo funcione en local
 
 ### Decisiones de Diseño
 - **Moneda**: EUR (sin multi-moneda por ahora)
