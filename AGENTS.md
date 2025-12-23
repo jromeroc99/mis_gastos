@@ -17,9 +17,20 @@ Actuar como partner técnico para desarrollar una aplicación de control de gast
 - **Build Tool**: Vite
 - **Styling**: Tailwind CSS
 
+### Mobile (Fase 2)
+- **Framework**: Jetpack Compose (Android)
+- **Lenguaje**: Kotlin
+- **Storage**: EncryptedSharedPreferences / Keystore
+
 ### Orquestación
 - **Docker**: Docker Compose
 - **Entorno**: WSL2
+
+### Decisiones de Diseño
+- **Moneda**: EUR (sin multi-moneda por ahora)
+- **Fechas de transacciones**: Solo DATE (sin hora) - el usuario solo registra el día
+- **Auditoría**: created_at/updated_at usan TIMESTAMP para trazabilidad del sistema
+- **APIs externas**: No usar APIs de precios por ahora (precio manual)
 
 ## Reglas Básicas
 
