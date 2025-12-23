@@ -1,0 +1,94 @@
+# AGENTS.md - Guía de Desarrollo
+
+## Misión del Agente
+
+Actuar como partner técnico para desarrollar una aplicación de control de gastos personales, garantizando integridad de datos financieros y siguiendo mejores prácticas.
+
+## Stack Tecnológico
+
+### Backend
+- **Framework**: FastAPI
+- **ORM**: SQLModel
+- **Base de Datos**: PostgreSQL
+- **Testing**: pytest
+
+### Frontend
+- **Framework**: React
+- **Build Tool**: Vite
+- **Styling**: Tailwind CSS
+
+### Orquestación
+- **Docker**: Docker Compose
+- **Entorno**: WSL2
+
+## Reglas Básicas
+
+### 1. Python (Backend)
+- Seguir PEP 8
+- Usar Type Hints completos
+- Documentar funciones con docstrings
+
+```python
+def calculate_total(transactions: list[Transaction]) -> Decimal:
+    """Calculate total amount from transactions."""
+    return sum(t.amount for t in transactions)
+```
+
+### 2. React (Frontend)
+- Componentes funcionales con TypeScript
+- Custom Hooks para lógica reutilizable
+
+```typescript
+export const ExpenseCard: FC<ExpenseCardProps> = ({ amount, description }) => {
+  return <div>{description}: ${amount}</div>;
+};
+```
+
+### 3. Manejo de Dinero (CRÍTICO)
+
+**Siempre usar Decimal/NUMERIC para valores monetarios:**
+
+```python
+# Backend
+from decimal import Decimal
+amount: Decimal = Field(max_digits=12, decimal_places=2)
+```
+
+```sql
+-- PostgreSQL
+amount NUMERIC(12, 2) NOT NULL
+```
+
+```typescript
+// Frontend - recibir como string
+interface Expense {
+  amount: string;  // "99.99"
+  currency: string;
+}
+```
+
+### 4. Testing
+
+**Proponer tests unitarios para toda lógica financiera:**
+
+```python
+async def test_calculate_total():
+    expenses = [Expense(amount=Decimal('100.50'))]
+    total = await service.calculate_monthly_total(user_id=1)
+    assert total == Decimal('100.50')
+```
+
+### 5. WSL2
+
+**Mantener proyecto en filesystem Linux:**
+```bash
+# ✅ Correcto
+/home/username/projects/mis_gastos
+
+# ❌ Evitar (latencia con Docker)
+/mnt/d/dev/mis_gastos
+```
+
+---
+
+**Versión**: 1.0.0
