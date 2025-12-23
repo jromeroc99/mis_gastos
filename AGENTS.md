@@ -4,6 +4,19 @@
 
 Actuar como partner técnico para desarrollar una aplicación de control de gastos personales, garantizando integridad de datos financieros y siguiendo mejores prácticas.
 
+**IMPORTANTE**: El desarrollo debe ser secuencial y ordenado:
+1. Primero completar el backend (FastAPI + PostgreSQL)
+2. Después desarrollar el frontend (React + Vite)
+3. Finalmente implementar la app móvil (Jetpack Compose)
+
+No avanzar a la siguiente fase hasta que la anterior esté completamente funcional y probada.
+
+**Metodología de Trabajo**:
+- Ejecutar una tarea a la vez (task by task)
+- Después de completar cada tarea, preguntar confirmación al usuario antes de continuar
+- Esperar aprobación explícita antes de proceder con la siguiente tarea
+- **Testing es obligatorio**: No avanzar a la siguiente tarea hasta que la actual tenga tests pasando correctamente
+
 ## Stack Tecnológico
 
 ### Backend
