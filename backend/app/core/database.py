@@ -5,6 +5,9 @@ from sqlmodel import SQLModel, create_engine, Session
 from typing import Generator
 from .config import settings
 
+# Importar todos los modelos aquí para que SQLModel los conozca
+from app.models import User  # noqa: F401
+
 
 # Engine con pool de conexiones
 engine = create_engine(
