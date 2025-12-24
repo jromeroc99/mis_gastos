@@ -11,3 +11,10 @@ class TokenResponse(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    code: str  # 6 dígitos
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr

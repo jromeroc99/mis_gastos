@@ -16,6 +16,8 @@ Aplicación backend-centric para gestión integral de patrimonio personal que pe
 
 **Enfoque**: El backend es el componente principal con lógica de negocio completa. Los frontends son clientes ligeros que consumen la API REST.
 
+**Filosofía**: **Menos es más** - API REST simple, sin over-engineering, sin abstracciones innecesarias.
+
 **Documentación**:
 - [Modelo de Datos](./docs/database.md) - Esquema de base de datos y reglas de negocio
 
@@ -23,15 +25,39 @@ Aplicación backend-centric para gestión integral de patrimonio personal que pe
 
 ## Autenticación y Seguridad
 
-Ver detalles completos en [Modelo de Datos](./docs/database.md).
+**Estrategia**: JWT stateless para web + mobile con verificación de email.
 
-**Estrategia**: JWT stateless para web + mobile.
+**Flujo de Registro**:
+1. Usuario se registra → recibe email con código de verificación (6 dígitos)
+2. Usuario verifica email → `is_verified = True`
+3. Solo usuarios verificados pueden hacer login
+
+**Control de Acceso**:
+- Campo `is_active`: Permite al admin bloquear/desbloquear usuarios
+- Solo usuarios `is_active = True` AND `is_verified = True` pueden hacer login
 
 **Endpoints**:
-- `POST /api/auth/register` - Registro
-- `POST /api/auth/login` - Login (access_token + refresh_token)
+- `POST /api/auth/register` - Registro (envía email de verificación)
+- `POST /api/auth/verify-email` - Verificar email con código
+- `POST /api/auth/resend-verification` - Reenviar código de verificación
+- `POST /api/auth/login` - Login (solo usuarios verificados y activos)
 - `POST /api/auth/refresh` - Renovar token
 - `POST /api/auth/logout` - Cerrar sesión
+
+**Modelo de Usuario**:
+```python
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(unique=True, index=True)
+    password_hash: str
+    name: str
+    is_verified: bool = Field(default=False)  # Email verificado
+    is_active: bool = Field(default=True)     # Control de acceso
+    verification_code: Optional[str] = None   # Código temporal
+    verification_expires: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+```
 
 ---
 
@@ -45,7 +71,11 @@ Ver detalles completos en [Modelo de Datos](./docs/database.md).
 
 #### Criterios de Aceptación
 
-- [ ] Al registrarme, veo una pantalla de bienvenida con dos opciones:
+- [ ] Al registrarme, recibo un email con código de verificación (6 dígitos)
+- [ ] Tengo 24 horas para verificar mi email
+- [ ] Puedo solicitar reenvío del código si expira o no lo recibo
+- [ ] Solo después de verificar email puedo hacer login
+- [ ] Al hacer login, veo pantalla de bienvenida con dos opciones:
   - Importar datos desde CSV
   - Empezar desde cero
 - [ ] Si elijo "Importar CSV", puedo descargar plantillas para:

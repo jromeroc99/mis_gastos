@@ -22,7 +22,7 @@ No avanzar a la siguiente fase hasta que la anterior esté completamente funcion
 ### Backend
 - **Framework**: FastAPI
 - **ORM**: SQLModel
-- **Base de Datos**: PostgreSQL
+- **Base de Datos**: MySQL (simplicidad y facilidad de configuración)
 - **Testing**: pytest
 
 ### Frontend
@@ -37,7 +37,7 @@ No avanzar a la siguiente fase hasta que la anterior esté completamente funcion
 
 ### Entorno de Desarrollo
 - **Entorno**: WSL2
-- **Base de Datos**: PostgreSQL local (sin Docker por ahora)
+- **Base de Datos**: MySQL local (sin Docker por ahora)
 - **Docker**: Se implementará al final, cuando todo funcione en local
 
 ### Decisiones de Diseño
@@ -80,8 +80,8 @@ amount: Decimal = Field(max_digits=12, decimal_places=2)
 ```
 
 ```sql
--- PostgreSQL
-amount NUMERIC(12, 2) NOT NULL
+-- MySQL
+amount DECIMAL(12, 2) NOT NULL
 ```
 
 ```typescript

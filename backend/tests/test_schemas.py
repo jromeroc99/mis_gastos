@@ -96,6 +96,8 @@ def test_user_response():
         id=1,
         email="response@gmail.com",
         name="Test User",
+        is_verified=False,
+        is_active=True,
         created_at=datetime.now()
     )
     assert user.id == 1

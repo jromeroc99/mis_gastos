@@ -25,9 +25,11 @@ backend/
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 sqlmodel==0.0.14
-psycopg2-binary==2.9.9
-python-jose[cryptography]==3.3.0
+pymysql==1.1.0
+cryptography==41.0.7
+PyJWT[crypto]==2.8.0
 passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
 python-multipart==0.0.6
 pydantic==2.5.0
 pydantic-settings==2.1.0
@@ -39,7 +41,7 @@ httpx==0.25.2
 **Contenido de `.env.example`**:
 ```bash
 # Database
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mis_gastos
+DATABASE_URL=mysql+pymysql://mis_gastos_user:dev_password_123@localhost/mis_gastos
 
 # Security
 SECRET_KEY=your-secret-key-change-this-in-production
@@ -116,45 +118,52 @@ uvicorn app.main:app --reload
 
 ---
 
-## Task 1.2: Configuración de PostgreSQL Local
+## Task 1.2: Configuración de MySQL Local
 
-**Objetivo**: Configurar PostgreSQL localmente en WSL2 para desarrollo
+**Objetivo**: Configurar MySQL localmente en WSL2 para desarrollo
 
-**Estrategia**: Usar PostgreSQL nativo instalado en WSL2. Docker se implementará al final cuando todo funcione.
+**Estrategia**: Usar MySQL nativo instalado en WSL2. Docker se implementará al final cuando todo funcione.
 
-**Instalación de PostgreSQL en WSL2**:
+**Instalación de MySQL en WSL2**:
 ```bash
 # Actualizar sistema
 sudo apt update && sudo apt upgrade -y
 
-# Instalar PostgreSQL
-sudo apt install postgresql postgresql-contrib -y
+# Instalar MySQL
+sudo apt install mysql-server -y
 
 # Iniciar servicio
-sudo service postgresql start
+sudo service mysql start
 
 # Verificar status
-sudo service postgresql status
+sudo service mysql status
 ```
 
 **Configuración inicial de la base de datos**:
 ```bash
-# Conectar como usuario postgres
-sudo -u postgres psql
+# Usar el script SQL proporcionado
+cd backend
+sudo mysql < setup_mysql.sql
 
-# Crear base de datos y usuario (ejecutar en psql)
-CREATE DATABASE mis_gastos;
-CREATE USER mis_gastos_user WITH PASSWORD 'your_secure_password';
-GRANT ALL PRIVILEGES ON DATABASE mis_gastos TO mis_gastos_user;
+# O manualmente:
+sudo mysql
 
-# Salir de psql
-\q
+# Crear base de datos y usuario (ejecutar en MySQL)
+CREATE DATABASE mis_gastos CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE mis_gastos_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'mis_gastos_user'@'localhost' IDENTIFIED BY 'dev_password_123';
+GRANT ALL PRIVILEGES ON mis_gastos.* TO 'mis_gastos_user'@'localhost';
+GRANT ALL PRIVILEGES ON mis_gastos_test.* TO 'mis_gastos_user'@'localhost';
+FLUSH PRIVILEGES;
+
+# Salir de MySQL
+exit;
 ```
 
 **Archivo `.env` en `backend/`**:
 ```env
 # Database
-DATABASE_URL=postgresql://mis_gastos_user:your_secure_password@localhost:5432/mis_gastos
+DATABASE_URL=mysql+pymysql://mis_gastos_user:dev_password_123@localhost/mis_gastos
 
 # Security
 SECRET_KEY=your-secret-key-here-change-in-production
@@ -170,8 +179,8 @@ import os
 from sqlmodel import create_engine, Session, text
 
 def test_database_connection():
-    """Test que la conexión a PostgreSQL funciona"""
-    database_url = os.getenv("DATABASE_URL", "postgresql://mis_gastos_user:your_secure_password@localhost:5432/mis_gastos")
+    """Test que la conexión a MySQL funciona"""
+    database_url = os.getenv("DATABASE_URL", "mysql+pymysql://mis_gastos_user:dev_password_123@localhost/mis_gastos")
     engine = create_engine(database_url)
     
     with Session(engine) as session:
@@ -181,37 +190,41 @@ def test_database_connection():
 
 **Comandos de verificación**:
 ```bash
-# Verificar que PostgreSQL está corriendo
-sudo service postgresql status
+# Verificar que MySQL está corriendo
+sudo service mysql status
 
 # Conectar a la base de datos
-psql -U mis_gastos_user -d mis_gastos -h localhost
+mysql -u mis_gastos_user -pdev_password_123 mis_gastos
 
 # Ejecutar test de conexión
 cd backend
+source venv/bin/activate
 pytest tests/test_database_connection.py
 
 # Ver bases de datos existentes
-psql -U postgres -c "\l"
+mysql -u root -e "SHOW DATABASES;"
 ```
 
-**Comandos útiles de PostgreSQL**:
+**Comandos útiles de MySQL**:
 ```bash
 # Iniciar servicio
-sudo service postgresql start
+sudo service mysql start
 
 # Detener servicio
-sudo service postgresql stop
+sudo service mysql stop
 
 # Reiniciar servicio
-sudo service postgresql restart
+sudo service mysql restart
 
 # Ver logs
+sudo tail -f /var/log/mysql/error.log
+```
+
 **Criterio de aceptación**:
-- ✅ PostgreSQL instalado en WSL2
-- ✅ Base de datos `mis_gastos` creada correctamente
+- ✅ MySQL instalado en WSL2
+- ✅ Bases de datos `mis_gastos` y `mis_gastos_test` creadas correctamente
 - ✅ Usuario y permisos configurados
-- ✅ Backend local se conecta a PostgreSQL (localhost:5432)
+- ✅ Backend local se conecta a MySQL (localhost:3306)
 - ✅ Test de conexión pasa correctamente
 - ✅ Archivo `.env` configurado
 
@@ -266,6 +279,7 @@ engine = create_engine(
     settings.DATABASE_URL,
     echo=True,  # Log SQL queries (desactivar en producción)
     pool_pre_ping=True,  # Verificar conexión antes de usar
+    pool_recycle=3600,  # Reciclar conexiones cada hora (MySQL timeout)
 )
 
 def create_db_and_tables():
@@ -288,7 +302,7 @@ from sqlmodel import SQLModel, Session
 def test_engine_creation():
     """Test que el engine se crea correctamente"""
     assert engine is not None
-    assert str(engine.url).startswith("postgresql://")
+    assert str(engine.url).startswith("mysql+pymysql://")
 
 def test_get_session():
     """Test que get_session retorna una sesión válida"""

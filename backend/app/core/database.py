@@ -14,6 +14,7 @@ engine = create_engine(
     settings.DATABASE_URL,
     echo=True,  # Log SQL queries (desactivar en producción)
     pool_pre_ping=True,  # Verificar conexión antes de usar
+    pool_recycle=3600,  # Reciclar conexiones cada hora (MySQL timeout)
 )
 
 

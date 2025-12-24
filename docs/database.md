@@ -6,13 +6,18 @@
 
 ```sql
 CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
+    id INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     name VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
+    is_verified BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    verification_code VARCHAR(6) DEFAULT NULL,
+    verification_expires DATETIME DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 **Modelo Python (SQLModel)**:
@@ -24,6 +29,10 @@ class User(SQLModel, table=True):
     email: str = Field(max_length=255, unique=True, index=True)
     password_hash: str = Field(max_length=255)
     name: str = Field(max_length=100)
+    is_verified: bool = Field(default=False)  # Email verificado
+    is_active: bool = Field(default=True)  # Control de acceso
+    verification_code: Optional[str] = Field(default=None, max_length=6)  # Código temporal
+    verification_expires: Optional[datetime] = Field(default=None)  # Expiración del código
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 ```
@@ -36,16 +45,20 @@ class User(SQLModel, table=True):
 
 ```sql
 CREATE TABLE transactions (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id),
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     date DATE NOT NULL,  -- Solo fecha, sin hora (lo que importa es el día)
     concept VARCHAR(200) NOT NULL,
-    amount NUMERIC(12, 2) NOT NULL,  -- Positivo: ingreso, Negativo: gasto
-    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    category_id INTEGER REFERENCES categories(id),  -- Opcional
+    amount DECIMAL(12, 2) NOT NULL,  -- Positivo: ingreso, Negativo: gasto
+    account_id INT NOT NULL,
+    category_id INT DEFAULT NULL,  -- Opcional
     notes TEXT,
-    created_at TIMESTAMP DEFAULT NOW()  -- Auditoría del sistema
-);
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Auditoría del sistema
+    INDEX idx_user_date (user_id, date),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES categories(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 **Regla de eliminación**: Si se elimina una cuenta, TODAS sus transacciones se eliminan en cascada. El usuario debe confirmar explícitamente esta acción destructiva.
@@ -74,14 +87,16 @@ class Transaction(SQLModel, table=True):
 
 ```sql
 CREATE TABLE categories (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id),
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,
     icon VARCHAR(50),  -- Emoji: 💰
     color VARCHAR(7) DEFAULT '#6B7280',  -- Hex: #FF5733
     type VARCHAR(20) DEFAULT 'regular',  -- 'regular', 'transfer', 'investment'
-    created_at TIMESTAMP DEFAULT NOW()
-);
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 **Tipos de Categoría**:
@@ -122,14 +137,16 @@ CREATE TABLE categories (
 
 ```sql
 CREATE TABLE accounts (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id),
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,  -- "Efectivo", "Santander", "BBVA"
     icon VARCHAR(50) DEFAULT '🏦',
-    balance NUMERIC(12, 2) DEFAULT 0.00,  -- Balance actual
+    balance DECIMAL(12, 2) DEFAULT 0.00,  -- Balance actual
     currency VARCHAR(3) DEFAULT 'EUR',
-    created_at TIMESTAMP DEFAULT NOW()
-);
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 **Regla de negocio**: El `balance` se actualiza con cada transacción:
@@ -246,15 +263,17 @@ async def delete_liability(liability_id: int) -> dict:
 
 ```sql
 CREATE TABLE assets (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id),
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,  -- "Bitcoin", "Oro físico", "Apple Inc."
     symbol VARCHAR(20),  -- "BTC", "XAU", "AAPL"
     icon VARCHAR(50) DEFAULT '💎',
     color VARCHAR(7) DEFAULT '#10B981',
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(user_id, name)
-);
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    UNIQUE KEY unique_user_asset (user_id, name),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 **Modelo Python**:
@@ -279,16 +298,20 @@ class Asset(SQLModel, table=True):
 
 ```sql
 CREATE TABLE asset_transactions (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    asset_id INT NOT NULL,
     date DATE NOT NULL,  -- Solo fecha, sin hora
-    quantity NUMERIC(18, 8) NOT NULL,  -- Positivo: compra, Negativo: venta
-    price_per_unit NUMERIC(12, 2) NOT NULL,
-    total_amount NUMERIC(12, 2) NOT NULL,  -- quantity * price_per_unit
+    quantity DECIMAL(18, 8) NOT NULL,  -- Positivo: compra, Negativo: venta
+    price_per_unit DECIMAL(12, 2) NOT NULL,
+    total_amount DECIMAL(12, 2) NOT NULL,  -- quantity * price_per_unit
     notes TEXT,
-    created_at TIMESTAMP DEFAULT NOW()  -- Auditoría del sistema
-);
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Auditoría del sistema
+    INDEX idx_user_date (user_id, date),
+    INDEX idx_asset_id (asset_id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 **Regla de eliminación**: Si se elimina un activo, TODAS sus transacciones se eliminan en cascada. El usuario debe confirmar explícitamente esta acción destructiva.
@@ -327,15 +350,17 @@ class AssetTransaction(SQLModel, table=True):
 
 ```sql
 CREATE TABLE liabilities (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id),
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,  -- "Hipoteca BBVA", "Préstamo auto", "Tarjeta crédito"
     creditor VARCHAR(100),  -- "BBVA", "Santander"
     icon VARCHAR(50) DEFAULT '💳',
     color VARCHAR(7) DEFAULT '#EF4444',
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(user_id, name)
-);
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    UNIQUE KEY unique_user_liability (user_id, name),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 **Modelo Python**:
@@ -360,14 +385,18 @@ class Liability(SQLModel, table=True):
 
 ```sql
 CREATE TABLE liability_transactions (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id),
-    liability_id INTEGER NOT NULL REFERENCES liabilities(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    liability_id INT NOT NULL,
     date DATE NOT NULL,  -- Solo fecha, sin hora
-    amount NUMERIC(12, 2) NOT NULL,  -- Positivo: préstamo recibido, Negativo: pago
+    amount DECIMAL(12, 2) NOT NULL,  -- Positivo: préstamo recibido, Negativo: pago
     notes TEXT,
-    created_at TIMESTAMP DEFAULT NOW()  -- Auditoría del sistema
-);
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- Auditoría del sistema
+    INDEX idx_user_date (user_id, date),
+    INDEX idx_liability_id (liability_id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (liability_id) REFERENCES liabilities(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 **Regla de eliminación**: Si se elimina un pasivo, TODAS sus transacciones se eliminan en cascada. El usuario debe confirmar explícitamente esta acción destructiva.
@@ -401,16 +430,18 @@ class LiabilityTransaction(SQLModel, table=True):
 
 ```sql
 CREATE TABLE snapshots (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id),
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
     date DATE NOT NULL,
-    total_accounts NUMERIC(12, 2) NOT NULL,
-    total_assets NUMERIC(12, 2) NOT NULL,
-    total_liabilities NUMERIC(12, 2) NOT NULL,
-    net_worth NUMERIC(12, 2) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(user_id, date)
-);
+    total_accounts DECIMAL(12, 2) NOT NULL,
+    total_assets DECIMAL(12, 2) NOT NULL,
+    total_liabilities DECIMAL(12, 2) NOT NULL,
+    net_worth DECIMAL(12, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_date (user_id, date),
+    UNIQUE KEY unique_user_snapshot (user_id, date),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
 **Regla de negocio**: Snapshot opcional (diario/semanal/mensual):
@@ -446,8 +477,8 @@ amount = Decimal("99.99")
 ```
 
 ```sql
--- ✅ CORRECTO
-amount NUMERIC(12, 2) NOT NULL
+-- ✅ CORRECTO (MySQL)
+amount DECIMAL(12, 2) NOT NULL
 ```
 
 ### Clasificación de Transacciones por Tipo de Categoría

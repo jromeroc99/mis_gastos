@@ -9,7 +9,7 @@ from sqlmodel import SQLModel, Session
 def test_engine_creation():
     """Test que el engine se crea correctamente"""
     assert engine is not None
-    assert str(engine.url).startswith("postgresql://")
+    assert str(engine.url).startswith("mysql+pymysql://")
 
 
 def test_engine_database_name():

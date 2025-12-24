@@ -18,9 +18,9 @@ backend/
 
 **Contenido de `app/core/security.py`**:
 ```python
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
 from .config import settings
 
@@ -40,9 +40,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode = data.copy()
     
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
     to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -51,7 +51,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def create_refresh_token(data: dict) -> str:
     """Crear refresh token JWT"""
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
@@ -61,7 +61,7 @@ def decode_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
-    except JWTError:
+    except jwt.InvalidTokenError:
         return None
 ```
 
@@ -147,7 +147,7 @@ backend/
 **Contenido de `app/models/user.py`**:
 ```python
 from sqlmodel import SQLModel, Field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 class User(SQLModel, table=True):
@@ -157,8 +157,12 @@ class User(SQLModel, table=True):
     email: str = Field(max_length=255, unique=True, index=True)
     password_hash: str = Field(max_length=255)
     name: str = Field(max_length=100)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    is_verified: bool = Field(default=False)  # Email verificado
+    is_active: bool = Field(default=True)  # Control de acceso
+    verification_code: Optional[str] = Field(default=None, max_length=6)  # Código temporal (6 dígitos)
+    verification_expires: Optional[datetime] = Field(default=None)  # Expiración del código
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 ```
 
 **Contenido de `app/models/__init__.py`**:
@@ -182,6 +186,7 @@ engine = create_engine(
     settings.DATABASE_URL,
     echo=True,
     pool_pre_ping=True,
+    pool_recycle=3600,  # Reciclar conexiones cada hora (MySQL timeout)
 )
 
 def create_db_and_tables():
@@ -298,6 +303,8 @@ class UserCreate(UserBase):
 
 class UserResponse(UserBase):
     id: int
+    is_verified: bool
+    is_active: bool
     created_at: datetime
     
     class Config:
@@ -319,12 +326,19 @@ class TokenResponse(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+    code: str  # 6 dígitos
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
 ```
 
 **Contenido de `app/schemas/__init__.py`**:
 ```python
 from .user import UserBase, UserCreate, UserResponse
-from .auth import LoginRequest, TokenResponse, RefreshTokenRequest
+from .auth import LoginRequest, TokenResponse, RefreshTokenRequest, VerifyEmailRequest, ResendVerificationRequest
 
 __all__ = [
     "UserBase",
@@ -333,6 +347,8 @@ __all__ = [
     "LoginRequest",
     "TokenResponse",
     "RefreshTokenRequest",
+    "VerifyEmailRequest",
+    "ResendVerificationRequest",
 ]
 ```
 
