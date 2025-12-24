@@ -362,8 +362,7 @@ backend/
 │   └── ...
 ├── alembic/  # Database migrations
 ├── .env.example
-├── requirements.txt
-└── docker-compose.yml
+└── requirements.txt
 ```
 
 ### Frontend Structure - Web App (React + Vite + Tailwind)
@@ -430,7 +429,7 @@ mobile/
 - **Base de Datos**: PostgreSQL 15+
 - **Autenticación**: JWT (python-jose, passlib[bcrypt])
 - **Testing**: pytest, pytest-asyncio
-- **Deployment**: Docker + Docker Compose
+- **Deployment**: PostgreSQL local (Docker al final del proyecto)
 
 ### Frontend - Web App (Fase 1)
 - **Framework**: React 18+

@@ -251,15 +251,15 @@ def test_user_email_unique():
 
 **Comandos de verificación**:
 ```bash
-# Recrear base de datos
-docker-compose down -v
-docker-compose up -d
+# Recrear base de datos (si es necesario)
+sudo -u postgres psql -c "DROP DATABASE IF EXISTS mis_gastos;"
+sudo -u postgres psql -c "CREATE DATABASE mis_gastos;"
 
 # Ejecutar tests
 pytest tests/test_user_model.py -v
 
 # Verificar en PostgreSQL
-docker exec -it mis_gastos_db psql -U postgres -d mis_gastos -c "\d users"
+psql -U mis_gastos_user -d mis_gastos -h localhost -c "\d users"
 ```
 
 **Criterio de aceptación**:
