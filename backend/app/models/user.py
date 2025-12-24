@@ -9,7 +9,6 @@ from typing import Optional
 class User(SQLModel, table=True):
     """User model for storing user information"""
     __tablename__ = "users"
-    __table_args__ = {"schema": "mis_gastos"}
     
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(max_length=255, unique=True, index=True)
